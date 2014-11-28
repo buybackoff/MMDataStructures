@@ -2,8 +2,9 @@ MMDataStructures
 ==================
 
 Copied from https://mmf.codeplex.com/, replaced all serializers 
-by JSON.NET with easy option to replace it by setting a static `Config.Serializer`
- property (structs deserialization must support zero bytes array).
+by BinaryFormatter with easy option to replace it by setting a static `Config.Serializer`
+ property. Structs deserialization must support zero bytes array - wrap any existing 
+serializer as shown [here](https://github.com/buybackoff/MMDataStructures/blob/master/MMDataStructures/Serializer.cs).
 
 
 <div class="row">

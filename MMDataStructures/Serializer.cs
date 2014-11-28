@@ -2,7 +2,8 @@
 using System.Text;
 using System.IO;
 using System.IO.Compression;
-using Newtonsoft.Json;
+using System.Runtime.Serialization.Formatters.Binary;
+//using Newtonsoft.Json;
 using System.Runtime.InteropServices;
 using System;
 
@@ -23,7 +24,7 @@ namespace MMDataStructures
     /// </summary>
     public class DefaultSerializer : ISerializer
     {
-
+        private readonly BinaryFormatter _formatter = new BinaryFormatter();
         /// <summary>
         /// 
         /// </summary>
@@ -35,14 +36,17 @@ namespace MMDataStructures
             }
             else
             {
+                MemoryStream byteStream = new MemoryStream();
+                _formatter.Serialize(byteStream, value);
+                byteStream.Position = 0;
+                return byteStream.ToArray();
 
-                // TODO test if JSON.NET does exactly the same thing with nulls
-                if (!typeof(T).IsValueType && EqualityComparer<T>.Default.Equals(value, default(T)))
-                {
-                    return null;
-                }
-                var json = JsonConvert.SerializeObject(value);
-                return Encoding.UTF8.GetBytes(json);
+                //if (!typeof(T).IsValueType && EqualityComparer<T>.Default.Equals(value, default(T)))
+                //{
+                //    return null;
+                //}
+                //var json = JsonConvert.SerializeObject(value);
+                //return Encoding.UTF8.GetBytes(json);
             }
         }
 
@@ -51,15 +55,19 @@ namespace MMDataStructures
         /// </summary>
         public T Deserialize<T>(byte[] bytes)
         {
+
             if (typeof(T).IsValueType)
             {
                 return BytesToStruct<T>(bytes);
             }
             else
             {
-                if (bytes == null) return default(T);
-                var json = Encoding.UTF8.GetString(bytes);
-                return JsonConvert.DeserializeObject<T>(json);
+                MemoryStream byteStream = new MemoryStream(bytes);
+                return (T)_formatter.UnsafeDeserialize(byteStream, null);
+
+                //if (bytes == null) return default(T);
+                //var json = Encoding.UTF8.GetString(bytes);
+                //return JsonConvert.DeserializeObject<T>(json);
             }
         }
 
