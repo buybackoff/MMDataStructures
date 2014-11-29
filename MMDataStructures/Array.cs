@@ -127,6 +127,7 @@ namespace MMDataStructures {
                     }
                     using (var va = Fm.CreateViewWrap()) {
                         var buffer = Config.Serializer.Serialize(value);
+                        Fm.EnsureCapacity(index * _dataSize + buffer.Length);
                         va.VA.UnsafeWriteBytes(index * _dataSize, buffer);
                         _version++;
                     }

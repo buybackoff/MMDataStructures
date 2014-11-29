@@ -27,7 +27,6 @@ namespace MMDataStructures.DictionaryBacking {
         private string _path;
         private int _defaultKeySize;
         private int _defaultValueSize;
-        private string _controlFile;
         private string _hashFile;
         private string _keyFile;
         private string _valueFile;
@@ -46,7 +45,6 @@ namespace MMDataStructures.DictionaryBacking {
             PersistenceMode persistenceMode = PersistenceMode.TemporaryPersist) {
             _capacity = HashHelpers.GetNextPrime(capacity);
             SetStorageFilenames(name);
-            if (persistenceMode == PersistenceMode.Persist) { InitializeControlFile(); }
 
             SetDefaultKeyValueSize();
 
@@ -61,34 +59,11 @@ namespace MMDataStructures.DictionaryBacking {
             if (string.IsNullOrEmpty(name)) { name = Guid.NewGuid().ToString(); }
             _path = Config.DataPath;
             if (!Directory.Exists(_path)) { Directory.CreateDirectory(_path); }
-            _controlFile = Path.Combine(_path, name + ".ctrl");
             _hashFile = Path.Combine(_path, name + ".hash");
             _keyFile = Path.Combine(_path, name + ".key");
             _valueFile = Path.Combine(_path, name + ".value");
         }
 
-        private void InitializeControlFile() {
-            // TODO weird, must be able to create dic without setting capacity, but read existing
-
-            if (File.Exists(_controlFile)) {
-                if (!File.Exists(_hashFile)) throw new FileNotFoundException("Hash file is missing");
-                if (!File.Exists(_keyFile)) throw new FileNotFoundException("Key file is missing");
-                if (!File.Exists(_valueFile)) throw new FileNotFoundException("Value file is missing");
-
-                var settings = File.ReadAllLines(_controlFile);
-                var ctrlCapacity = int.Parse(settings[0]);
-                if (ctrlCapacity != _capacity)
-                    throw new ArgumentException("capacity differes from existing file. " + _capacity + " != " +
-                                                ctrlCapacity);
-
-            } else {
-                if (File.Exists(_hashFile)) throw new InvalidOperationException("Hash file exists already");
-                if (File.Exists(_keyFile)) throw new InvalidOperationException("Key file exists already");
-                if (File.Exists(_valueFile)) throw new InvalidOperationException("Value file exists already");
-
-                using (var fileStream = File.CreateText(_controlFile)) { fileStream.WriteLine(_capacity.ToString()); }
-            }
-        }
 
         private void InitDictionary() // TODO why this is needed?
         {
@@ -108,17 +83,10 @@ namespace MMDataStructures.DictionaryBacking {
             if (_defaultValueSize == 0) _defaultValueSize = 40;
         }
 
-        //~BackingUnknownSize() {
-        //    Dispose();
-        //}
-
         public void Dispose() {
             if (_keys != null) _keys.Dispose();
             if (_values != null) _values.Dispose();
-            if (_hashCodeLookup != null) {
-                if (_hashCodeLookup.PersistenceMode != PersistenceMode.Persist) { File.Delete(_controlFile); }
-                _hashCodeLookup.Dispose();
-            }
+            if (_hashCodeLookup != null) _hashCodeLookup.Dispose();
             _keys = null;
             _values = null;
             _hashCodeLookup = null;
@@ -135,13 +103,13 @@ namespace MMDataStructures.DictionaryBacking {
         /*
         File Layout Keyfile
         
-        KeyLength   VInt  -> Int
+        KeyLength   Int
         KeyBytes[]
-        ValuePos    VLong  -> Long
-        NextKeyPos  VLong -  -> Long
+        ValuePos    Long
+        NextKeyPos  Long
         
         File Layout Valuefile
-        ValueLength   VInt
+        ValueLength Int
         ValueBytes[]
          */
 
@@ -221,13 +189,13 @@ namespace MMDataStructures.DictionaryBacking {
         /*
         File Layout Keyfile
         
-        KeyLength   VInt  -> Int
+        KeyLength   Int
         KeyBytes[]
-        ValuePos    VLong  -> Long
-        NextKeyPos  VLong -  -> Long
+        ValuePos    Long
+        NextKeyPos  Long
         
         File Layout Valuefile
-        ValueLength   VInt
+        ValueLength Int
         ValueBytes[]
          */
 
@@ -342,17 +310,17 @@ namespace MMDataStructures.DictionaryBacking {
         }
 
         /*
-       File Layout Keyfile
+         File Layout Keyfile
 
-       KeyLength   VInt  -> Int
-       KeyBytes[]
-       ValuePos    VLong  -> Long
-       NextKeyPos  VLong -  -> Long
+         KeyLength   Int
+         KeyBytes[]
+         ValuePos    Long
+         NextKeyPos  Long
 
-       File Layout Valuefile
-       ValueLength   VInt
-       ValueBytes[]
-        */
+         File Layout Valuefile
+         ValueLength Int
+         ValueBytes[]
+          */
 
         public bool TryGetValue(TKey key, out TValue value) {
             var pos = GetHashCodePosition(key);
@@ -471,10 +439,11 @@ namespace MMDataStructures.DictionaryBacking {
 
         public static unsafe void UnsafeWriteBytes(this MemoryMappedViewAccessor view, long offset, byte[] data) {
             try {
-                byte* ptr = (byte*) 0;
-                view.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
-                IntPtr newPtr = new IntPtr((new IntPtr(ptr)).ToInt64() + offset);
-                Marshal.Copy(data, 0, newPtr, data.Length);
+                    byte* ptr = (byte*) 0;
+                    view.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                    var ptrV = new IntPtr(ptr);
+                    IntPtr newPtr = new IntPtr(ptrV.ToInt64() + offset); 
+                    Marshal.Copy(data, 0, newPtr, data.Length);
             } finally {
                 view.SafeMemoryMappedViewHandle.ReleasePointer();
             }

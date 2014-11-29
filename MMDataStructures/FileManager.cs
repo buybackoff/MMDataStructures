@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
@@ -8,30 +10,37 @@ using System.Threading;
 namespace MMDataStructures {
 
     internal class ViewWrap : IDisposable {
-        public MemoryMappedViewAccessor VA { get; }
+
+        internal MemoryMappedViewAccessor _va;
+
+        public MemoryMappedViewAccessor VA { get { return _va; } }
 
         public ViewWrap(MemoryMappedFile mmf) {
-            VA = mmf.CreateViewAccessor();
+            _va = mmf.CreateViewAccessor();
         }
 
         public void Dispose() {
-            // fake it
+            // fake it to 
         }
 
         ~ViewWrap() {
-            VA.Dispose();
+            _va.Dispose();
         }
     }
 
     internal class FileManager //: IFileManager
     {
-
-        private readonly ThreadLocal<ViewWrap> _vw = new ThreadLocal<ViewWrap>(false);
+        private ThreadLocal<ViewWrap> _vw = new ThreadLocal<ViewWrap>(true);
+        // see http://stackoverflow.com/a/7670762/801189 for this alchemy
+        private readonly HashSet<ViewWrap> _allWraps = new HashSet<ViewWrap>();
 
         public ViewWrap CreateViewWrap() {
-            return _vw.IsValueCreated
-                ? _vw.Value
-                : _vw.Value = new ViewWrap(Mmf);
+            if (_vw.IsValueCreated) return _vw.Value;
+            else {
+                var newWrap = new ViewWrap(Mmf);
+                _allWraps.Add(newWrap);
+                return _vw.Value = new ViewWrap(Mmf);
+            }
         }
 
         private const int _GROW_PERCENTAGE = 50;
@@ -71,7 +80,7 @@ namespace MMDataStructures {
             Capacity = maxCapacity;
             PersistenceMode = persistenceMode;
 
-            Mmf = CreateOrOpenFile(_fileName, Capacity, PersistenceMode, FileMutex);
+            Mmf = CreateOrOpenFile(_fileName, Capacity, PersistenceMode, FileMutex, false);
         }
 
         #region IViewManager Members
@@ -87,20 +96,21 @@ namespace MMDataStructures {
         //}
 
 
-        private static MemoryMappedFile CreateOrOpenFile(string fileName, long capacity, PersistenceMode persistenceMode, Mutex mutex) {
+        private static MemoryMappedFile CreateOrOpenFile(string fileName,
+            long capacity, PersistenceMode persistenceMode, Mutex mutex, bool forGrowth) {
             try {
                 mutex.WaitOne();
                 switch (persistenceMode) {
                     case PersistenceMode.TemporaryPersist:
-                    // we are first to the party since have created the mutex, will create new file instead of previous
-                    // we could avoid using semaphore here because mutex.Created = semaphore.Created
-                    //if (mutex.Created) { DeleteBackingFileIfExists(fileName); }
-                    //goto case PersistenceMode.Persist;
+                        // we are first to the party since have created the mutex, will create new file instead of previous
+                        // we could avoid using semaphore here because mutex.Created = semaphore.Created
+                        if (mutex.Created && !forGrowth) { DeleteBackingFileIfExists(fileName); }
+                        goto case PersistenceMode.Persist;
                     case PersistenceMode.Persist:
                         var fileStream = new FileStream(fileName, FileMode.OpenOrCreate,
                             FileAccess.ReadWrite, FileShare.ReadWrite);
                         var mmfs = new MemoryMappedFileSecurity();
-
+                        capacity = Math.Max(fileStream.Length, capacity);
                         return MemoryMappedFile.CreateFromFile(fileStream,
                             Path.GetFileName(fileName), capacity,
                             MemoryMappedFileAccess.ReadWrite, mmfs, HandleInheritability.Inheritable,
@@ -144,7 +154,12 @@ namespace MMDataStructures {
                             : newCapacity;
                         CloseMapFile();
                         Trace.Assert(Mmf == null);
-                        Mmf = CreateOrOpenFile(_fileName, Capacity, PersistenceMode, FileMutex);
+                        Mmf = CreateOrOpenFile(_fileName, Capacity, PersistenceMode, FileMutex, true);
+                        // recreate views so that unsafe r/w on already created wrap do not throw
+                        foreach (var viewWrap in _vw.Values) {
+                            viewWrap._va.Dispose();
+                            viewWrap._va = Mmf.CreateViewAccessor();
+                        }
                         break;
                     case PersistenceMode.Ephemeral:
                         throw new NotSupportedException("In-memory MMFs do not support resizing. Set initial capacity large enough, only actually used memory will be consumed from RAM");
@@ -167,20 +182,15 @@ namespace MMDataStructures {
         //}
 
         public void Dispose() {
-
+            foreach (var viewWrap in _allWraps) {
+                viewWrap._va.Dispose();
+            }
             _vw.Dispose();
-            
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
 
-            //try {
-            //    if (_vw != null && _vw.Values != null) {
-            //        var wraps = _vw.Values.ToArray();
-            //        foreach (var vw in wraps) { if (vw.VA != null) { vw.VA.Dispose(); } }
-            //    }
-            //} catch  { }
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
 
             try {
                 FileMutex.WaitOne();
@@ -189,13 +199,14 @@ namespace MMDataStructures {
                     var count = _tempSemaphore.Release();
                     // if no more access to the file, then delete it
                     if (count == _MAX_SHARED_ACCESS - 1) {
-                        DeleteBackingFileIfExists();
+                        DeleteBackingFileIfExists(_fileName);
                     }
+                    _tempSemaphore.Dispose();
                 }
             } finally {
                 FileMutex.ReleaseMutex();
             }
-            _tempSemaphore.Dispose();
+            
             FileMutex.Dispose();
         }
 
@@ -208,20 +219,16 @@ namespace MMDataStructures {
             Mmf = null;
         }
 
-        private void DeleteBackingFileIfExists() {
+        private static void DeleteBackingFileIfExists(string fileName) {
 
-            //try
-            //{
-            if (!File.Exists(_fileName)) return;
-            Trace.WriteLine("Deleting file: " + _fileName);
-            Thread.Sleep(2000);
-            File.Delete(_fileName);
-            //}
-            //catch (UnauthorizedAccessException e)
-            //{
-            // TODO: Handle files which for some reason didn't want to be deleted
-            //   Trace.WriteLine(e.Message);
-            //}
+            try {
+                if (!File.Exists(fileName)) return;
+                Trace.WriteLine("Deleting file: " + fileName);
+                File.Delete(fileName);
+            } catch (UnauthorizedAccessException e) {
+                //TODO: Handle files which for some reason didn't want to be deleted
+                Trace.WriteLine(e.Message);
+            }
         }
 
         #endregion

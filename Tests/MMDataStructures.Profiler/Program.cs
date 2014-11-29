@@ -30,7 +30,7 @@ namespace BenchmarkConsoleApp
         }
         #endregion
 
-        private static int MaxCount = 5000; //00;
+        private static int MaxCount = 1000000;
 
         public static int Main(string[] args)
         {
@@ -40,9 +40,9 @@ namespace BenchmarkConsoleApp
             Debug.Listeners.Add(tr1);
 
             //SingelThread_HashInMemory();
-            SingelThread_HashOnDisk();
+            //SingelThread_HashOnDisk();
             //Threaded_HashInMemory();
-            //Threaded_HashOnDisk();
+            Threaded_HashOnDisk();
 
             /*//Test mapper.
             SingelThread_HashCompositeOnDisk();
@@ -55,7 +55,7 @@ namespace BenchmarkConsoleApp
         private static void Threaded_HashOnDisk()
         {
             Console.WriteLine("Threaded_HashOnDisk");
-            var dict = new Dictionary<string, string>("Threaded_HashOnDisk", 100000);
+            var dict = new Dictionary<string, string>("Threaded_HashOnDisk", MaxCount);
 
             Console.WriteLine("Queuing {0} items to Thread Pool", MaxCount);
             Console.WriteLine("Queue to Thread Pool 0");
@@ -153,7 +153,7 @@ namespace BenchmarkConsoleApp
         private static void SingelThread_HashOnDisk()
         {
             Console.WriteLine("SingelThread_HashOnDisk");
-            var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", 1000000);
+            var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", MaxCount, PersistenceMode.TemporaryPersist);
 
             Stopwatch sw = Stopwatch.StartNew();
             for (int i = 0; i < MaxCount; i++)
