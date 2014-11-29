@@ -8,10 +8,8 @@ using System.Runtime.Serialization.Formatters.Binary;
 // From Ractor.Persistence
 // Commented out code is left intentionally as an example of how to plug in any other serializer
 
-namespace MMDataStructures
-{
-    public interface ISerializer
-    {
+namespace MMDataStructures {
+    public interface ISerializer {
         byte[] Serialize<T>(T value);
         T Deserialize<T>(byte[] bytes);
         T DeepClone<T>(T value);
@@ -21,20 +19,15 @@ namespace MMDataStructures
     /// <summary>
     /// 
     /// </summary>
-    public class DefaultSerializer : ISerializer
-    {
+    public class DefaultSerializer : ISerializer {
         private readonly BinaryFormatter _formatter = new BinaryFormatter();
         /// <summary>
         /// 
         /// </summary>
-        public byte[] Serialize<T>(T value)
-        {
-            if (typeof(T).IsValueType)
-            {
+        public byte[] Serialize<T>(T value) {
+            if (typeof(T).IsValueType) {
                 return StructToBytes(value);
-            }
-            else
-            {
+            } else {
                 MemoryStream byteStream = new MemoryStream();
                 _formatter.Serialize(byteStream, value);
                 byteStream.Position = 0;
@@ -52,15 +45,11 @@ namespace MMDataStructures
         /// <summary>
         /// 
         /// </summary>
-        public T Deserialize<T>(byte[] bytes)
-        {
+        public T Deserialize<T>(byte[] bytes) {
 
-            if (typeof(T).IsValueType)
-            {
+            if (typeof(T).IsValueType) {
                 return BytesToStruct<T>(bytes);
-            }
-            else
-            {
+            } else {
                 MemoryStream byteStream = new MemoryStream(bytes);
                 return (T)_formatter.UnsafeDeserialize(byteStream, null);
 
@@ -73,14 +62,14 @@ namespace MMDataStructures
         /// <summary>
         /// 
         /// </summary>
-        public T DeepClone<T>(T value)
-        {
+        public T DeepClone<T>(T value) {
             return Deserialize<T>(Serialize(value));
         }
 
 
-        private byte[] StructToBytes<TS>(TS str)
-        {
+        private byte[] StructToBytes<TS>(TS str) {
+            if (str is Int64) { return BitConverter.GetBytes(Convert.ToInt64(str)); }
+
             int size = Marshal.SizeOf(str);
             byte[] arr = new byte[size];
             IntPtr ptr = Marshal.AllocHGlobal(size);
@@ -91,8 +80,10 @@ namespace MMDataStructures
             return arr;
         }
 
-        private TS BytesToStruct<TS>(byte[] arr)
-        {
+        private TS BytesToStruct<TS>(byte[] arr) {
+            if (typeof(TS) == typeof(Int64)) {
+                return (TS)((object)BitConverter.ToInt64(arr, 0));
+            }
             TS str = default(TS);
             int size = Marshal.SizeOf(str);
             IntPtr ptr = Marshal.AllocHGlobal(size);
@@ -111,21 +102,16 @@ namespace MMDataStructures
     /// <summary>
     /// 
     /// </summary>
-    public static class CommonExtentions
-    {
+    public static class CommonExtentions {
 
 
         /// <summary>
         /// In-memory compress
         /// </summary>
-        public static byte[] GZip(this byte[] bytes)
-        {
-            using (var inStream = new MemoryStream(bytes))
-            {
-                using (var outStream = new MemoryStream())
-                {
-                    using (var compress = new GZipStream(outStream, CompressionMode.Compress))
-                    {
+        public static byte[] GZip(this byte[] bytes) {
+            using (var inStream = new MemoryStream(bytes)) {
+                using (var outStream = new MemoryStream()) {
+                    using (var compress = new GZipStream(outStream, CompressionMode.Compress)) {
                         inStream.CopyTo(compress);
                     }
                     return outStream.ToArray();
@@ -137,15 +123,11 @@ namespace MMDataStructures
         /// <summary>
         /// In-memory uncompress
         /// </summary>
-        public static byte[] UnGZip(this byte[] bytes)
-        {
+        public static byte[] UnGZip(this byte[] bytes) {
             byte[] outBytes;
-            using (var inStream = new MemoryStream(bytes))
-            {
-                using (var outStream = new MemoryStream())
-                {
-                    using (var deCompress = new GZipStream(inStream, CompressionMode.Decompress))
-                    {
+            using (var inStream = new MemoryStream(bytes)) {
+                using (var outStream = new MemoryStream()) {
+                    using (var deCompress = new GZipStream(inStream, CompressionMode.Decompress)) {
                         deCompress.CopyTo(outStream);
                     }
                     outBytes = outStream.ToArray();

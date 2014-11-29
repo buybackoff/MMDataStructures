@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using MMDataStructures.DictionaryBacking;
 
 namespace MMDataStructures {
     /// <summary>
@@ -100,10 +101,11 @@ namespace MMDataStructures {
                         }
                     }
 
-                    using (var va = Fm.Mmf.CreateViewAccessor()) {
-                        var buffer = new byte[_dataSize];
-                        var c = va.ReadArray(index * _dataSize, buffer, 0, _dataSize);
-                        Trace.Assert(c == _dataSize);
+                    using (var va = Fm.CreateViewWrap()) {
+                        //var buffer = new byte[_dataSize];
+                        //var c = va.Va.UnReadArray(index * _dataSize, buffer, 0, _dataSize);
+                        var buffer = va.VA.UnsafeReadBytes(index*_dataSize, _dataSize);
+                        //Trace.Assert(c == _dataSize);
                         return Config.Serializer.Deserialize<T>(buffer);
                     }
                 } finally {
@@ -123,9 +125,9 @@ namespace MMDataStructures {
                             throw new IndexOutOfRangeException("Tried to access item outside the array boundaries");
                         }
                     }
-                    using (var va = Fm.Mmf.CreateViewAccessor()) {
+                    using (var va = Fm.CreateViewWrap()) {
                         var buffer = Config.Serializer.Serialize(value);
-                        va.WriteArray(index * _dataSize, buffer, 0, _dataSize);
+                        va.VA.UnsafeWriteBytes(index * _dataSize, buffer);
                         _version++;
                     }
                 } finally {
@@ -138,15 +140,16 @@ namespace MMDataStructures {
 
         public IEnumerator<T> GetEnumerator() {
             var currentVersion = _version;
-            using (var vs = Fm.Mmf.CreateViewStream()) {
-                Trace.Assert(vs.Position == 0L);
-                var buffer = new byte[_dataSize];
+            using (var va = Fm.CreateViewWrap()) {
+                //Trace.Assert(vs.Position == 0L);
+                //var buffer = new byte[_dataSize];
                 for (int i = 0; i < Length; i++) {
                     if (currentVersion != _version) throw new InvalidOperationException("Collection modified during enumeration");
-                    var c = vs.Read(buffer, 0, _dataSize);
-                    Trace.Assert(c == _dataSize);
+                    //var c = va.Read(buffer, 0, _dataSize);
+                    var buffer = va.VA.UnsafeReadBytes(i*_dataSize, _dataSize);
+                    //Trace.Assert(c == _dataSize);
                     yield return Config.Serializer.Deserialize<T>(buffer);
-                    Array.Clear(buffer, 0, _dataSize);
+                    //Array.Clear(buffer, 0, _dataSize);
                 }
             }
         }

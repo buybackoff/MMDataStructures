@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
 
 namespace MMDataStructures.DictionaryBacking {
     /// <summary>
@@ -40,26 +42,23 @@ namespace MMDataStructures.DictionaryBacking {
         /// <param name="name">Name of the dictionary and its backing file</param>
         /// <param name="capacity">Number of buckets for the hash</param>
         /// <param name="persistenceMode"></param>
-        public BackingUnknownSize(string name, int capacity = 1000, PersistenceMode persistenceMode = PersistenceMode.TemporaryPersist) {
+        public BackingUnknownSize(string name, int capacity = 1000,
+            PersistenceMode persistenceMode = PersistenceMode.TemporaryPersist) {
             _capacity = HashHelpers.GetNextPrime(capacity);
             SetStorageFilenames(name);
-            if (persistenceMode == PersistenceMode.Persist) {
-                InitializeControlFile();
-            }
+            if (persistenceMode == PersistenceMode.Persist) { InitializeControlFile(); }
 
             SetDefaultKeyValueSize();
 
             _hashCodeLookup = new Array<long>(_capacity, _hashFile, true, persistenceMode);
-            _keys = new Array<byte>(_capacity * _defaultKeySize, _keyFile, true, persistenceMode);
-            _values = new Array<byte>(_capacity * _defaultValueSize, _valueFile, true, persistenceMode);
+            _keys = new Array<byte>(_capacity*_defaultKeySize, _keyFile, true, persistenceMode);
+            _values = new Array<byte>(_capacity*_defaultValueSize, _valueFile, true, persistenceMode);
 
             InitDictionary();
         }
 
         private void SetStorageFilenames(string name) {
-            if (string.IsNullOrEmpty(name)) {
-                name = Guid.NewGuid().ToString();
-            }
+            if (string.IsNullOrEmpty(name)) { name = Guid.NewGuid().ToString(); }
             _path = Config.DataPath;
             if (!Directory.Exists(_path)) { Directory.CreateDirectory(_path); }
             _controlFile = Path.Combine(_path, name + ".ctrl");
@@ -78,16 +77,16 @@ namespace MMDataStructures.DictionaryBacking {
 
                 var settings = File.ReadAllLines(_controlFile);
                 var ctrlCapacity = int.Parse(settings[0]);
-                if (ctrlCapacity != _capacity) throw new ArgumentException("capacity differes from existing file. " + _capacity + " != " + ctrlCapacity);
+                if (ctrlCapacity != _capacity)
+                    throw new ArgumentException("capacity differes from existing file. " + _capacity + " != " +
+                                                ctrlCapacity);
 
             } else {
                 if (File.Exists(_hashFile)) throw new InvalidOperationException("Hash file exists already");
                 if (File.Exists(_keyFile)) throw new InvalidOperationException("Key file exists already");
                 if (File.Exists(_valueFile)) throw new InvalidOperationException("Value file exists already");
 
-                using (var fileStream = File.CreateText(_controlFile)) {
-                    fileStream.WriteLine(_capacity.ToString());
-                }
+                using (var fileStream = File.CreateText(_controlFile)) { fileStream.WriteLine(_capacity.ToString()); }
             }
         }
 
@@ -97,17 +96,13 @@ namespace MMDataStructures.DictionaryBacking {
             foreach (var kvp in this) {
                 //TODO: read in largest seen pos values
                 Count++;
-                if (Count % 100000 == 0) {
-                    Trace.WriteLine("Items read: " + Count);
-                }
+                if (Count%100000 == 0) { Trace.WriteLine("Items read: " + Count); }
             }
         }
 
-        void SetDefaultKeyValueSize() {
-            if (default(TKey) != null)
-                _defaultKeySize = Config.Serializer.Serialize(default(TKey)).Length;
-            if (default(TValue) != null)
-                _defaultValueSize = Config.Serializer.Serialize(default(TValue)).Length;
+        private void SetDefaultKeyValueSize() {
+            if (default(TKey) != null) _defaultKeySize = Config.Serializer.Serialize(default(TKey)).Length;
+            if (default(TValue) != null) _defaultValueSize = Config.Serializer.Serialize(default(TValue)).Length;
 
             if (_defaultKeySize == 0) _defaultKeySize = 40;
             if (_defaultValueSize == 0) _defaultValueSize = 40;
@@ -121,9 +116,7 @@ namespace MMDataStructures.DictionaryBacking {
             if (_keys != null) _keys.Dispose();
             if (_values != null) _values.Dispose();
             if (_hashCodeLookup != null) {
-                if (_hashCodeLookup.PersistenceMode != PersistenceMode.Persist) {
-                    File.Delete(_controlFile);
-                }
+                if (_hashCodeLookup.PersistenceMode != PersistenceMode.Persist) { File.Delete(_controlFile); }
                 _hashCodeLookup.Dispose();
             }
             _keys = null;
@@ -133,7 +126,7 @@ namespace MMDataStructures.DictionaryBacking {
 
         private int GetHashCodePosition(TKey key) {
             int num = key.GetHashCode() & 0x7fffffff;
-            int index = num % _capacity;
+            int index = num%_capacity;
             return index;
         }
 
@@ -157,42 +150,42 @@ namespace MMDataStructures.DictionaryBacking {
         /// </summary>
         /// <returns></returns>
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() {
-            using (var kva = _keys.Fm.Mmf.CreateViewAccessor())
-            using (var vva = _values.Fm.Mmf.CreateViewAccessor()) {
+            using (var kvaw = _keys.Fm.CreateViewWrap())
+            using (var vvaw = _values.Fm.CreateViewWrap()) {
                 // iterating using view stream in _hashCodeLookup array
                 foreach (var firstKeyPosition in _hashCodeLookup) {
                     var keyPosition = firstKeyPosition;
                     while (keyPosition != 0) {
                         var keyCursor = keyPosition;
-                        var keyLength = kva.ReadInt32(keyCursor);
+                        var keyLength = kvaw.VA.UnsafeReadInt32(keyCursor);
                         keyCursor = keyCursor + 4;
 
-                        var keyBytes = new byte[keyLength];
-                        kva.ReadArray(keyCursor, keyBytes, 0, keyLength);
+                        //var keyBytes = new byte[keyLength];
+                        //kvaw.Va.ReadArray(keyCursor, keyBytes, 0, keyLength);
+                        var keyBytes = kvaw.VA.UnsafeReadBytes(keyCursor, keyLength);
                         keyCursor = keyCursor + keyLength;
 
                         var key = Config.Serializer.Deserialize<TKey>(keyBytes);
 
-                        var valuePos = kva.ReadInt64(keyCursor);
+                        var valuePos = kvaw.VA.UnsafeReadInt64(keyCursor);
                         keyCursor = keyCursor + 8;
 
                         var valueCursor = valuePos;
-                        var valueLength = vva.ReadInt32(valueCursor);
+                        var valueLength = vvaw.VA.UnsafeReadInt32(valueCursor);
                         valueCursor = valueCursor + 4;
 
-                        var valueBytes = new byte[valueLength];
-                        vva.ReadArray(valueCursor, valueBytes, 0, valueLength);
+                        //var valueBytes = new byte[valueLength];
+                        //vvaw.ReadArray(valueCursor, valueBytes, 0, valueLength);
+                        var valueBytes = vvaw.VA.UnsafeReadBytes(valueCursor, valueLength);
                         valueCursor = valueCursor + valueLength;
 
                         var value = Config.Serializer.Deserialize<TValue>(valueBytes);
 
-                        if (keyCursor > _largestSeenKeyPosition)
-                            _largestSeenKeyPosition = keyCursor + 8;
-                        if (valueCursor > _largestSeenValuePosition)
-                            _largestSeenValuePosition = valueCursor;
+                        if (keyCursor > _largestSeenKeyPosition) _largestSeenKeyPosition = keyCursor + 8;
+                        if (valueCursor > _largestSeenValuePosition) _largestSeenValuePosition = valueCursor;
 
                         yield return new KeyValuePair<TKey, TValue>(key, value);
-                        keyPosition = kva.ReadInt64(keyCursor);
+                        keyPosition = kvaw.VA.UnsafeReadInt64(keyCursor);
                     }
                 }
             }
@@ -221,9 +214,7 @@ namespace MMDataStructures.DictionaryBacking {
             byte[] valueBytes = Config.Serializer.Serialize(value);
 
             IEnumerator<KeyValuePair<TKey, TValue>> enumerator = GetEnumerator();
-            while (enumerator.MoveNext()) {
-                if (ByteCompare(valueBytes, enumerator.Current.Value)) return true;
-            }
+            while (enumerator.MoveNext()) { if (ByteCompare(valueBytes, enumerator.Current.Value)) return true; }
             return false;
         }
 
@@ -244,17 +235,18 @@ namespace MMDataStructures.DictionaryBacking {
             var pos = GetHashCodePosition(key);
             var keyPosition = _hashCodeLookup[pos];
             var keyBytesNew = Config.Serializer.Serialize(key);
-            using (var kva = _keys.Fm.Mmf.CreateViewAccessor()) {
+            using (var kvaw = _keys.Fm.CreateViewWrap()) {
                 if (keyPosition != 0) {
                     long nextKeyCursor;
                     do {
                         var keyCursor = keyPosition;
-                        var keyLengthExisting = kva.ReadInt32(keyCursor);
+                        var keyLengthExisting = kvaw.VA.UnsafeReadInt32(keyCursor);
 
                         keyCursor = keyCursor + 4;
 
-                        var keyBytesExisting = new byte[keyLengthExisting];
-                        kva.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                        //var keyBytesExisting = new byte[keyLengthExisting];
+                        //kvaw.Va.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                        var keyBytesExisting = kvaw.VA.UnsafeReadBytes(keyCursor, keyLengthExisting);
                         keyCursor = keyCursor + keyLengthExisting;
 
                         if (ByteArrayCompare.Equals(keyBytesNew, keyBytesExisting)) {
@@ -262,10 +254,10 @@ namespace MMDataStructures.DictionaryBacking {
                         }
                         keyCursor = keyCursor + 8; // skip valuepos
                         nextKeyCursor = keyCursor;
-                        keyPosition = kva.ReadInt64(keyCursor); // next key pos with same hash
+                        keyPosition = kvaw.VA.UnsafeReadInt64(keyCursor); // next key pos with same hash
                     } while (keyPosition != 0);
                     _keys.Fm.EnsureCapacity(nextKeyCursor + 8);
-                    kva.Write(nextKeyCursor, _largestSeenKeyPosition); // Fill in the chained keyhash
+                    kvaw.VA.UnsafeWriteInt64(nextKeyCursor, _largestSeenKeyPosition); // Fill in the chained keyhash
 
                 } else {
                     _hashCodeLookup[pos] = _largestSeenKeyPosition;
@@ -274,16 +266,16 @@ namespace MMDataStructures.DictionaryBacking {
                 var keyLengthNew = keyBytesNew.Length;
                 var cursor = _largestSeenKeyPosition;
                 _keys.Fm.EnsureCapacity(cursor + 4);
-                kva.Write(cursor, keyLengthNew);
+                kvaw.VA.UnsafeWriteInt32(cursor, keyLengthNew);
                 cursor = cursor + 4;
                 _keys.Fm.EnsureCapacity(cursor + keyLengthNew);
-                kva.WriteArray(cursor, keyBytesNew, 0, keyLengthNew);
+                kvaw.VA.UnsafeWriteBytes(cursor, keyBytesNew);
                 cursor = cursor + keyLengthNew;
                 _keys.Fm.EnsureCapacity(cursor + 8);
-                kva.Write(cursor, _largestSeenValuePosition);
+                kvaw.VA.UnsafeWriteInt64(cursor, _largestSeenValuePosition);
                 cursor = cursor + 8;
                 _keys.Fm.EnsureCapacity(cursor + 8);
-                kva.WriteArray(cursor, EmptyPosition, 0, 8); // space for nextkeypos
+                kvaw.VA.UnsafeWriteBytes(cursor, EmptyPosition); // space for nextkeypos
                 cursor = cursor + 8;
 
                 _largestSeenKeyPosition = cursor;
@@ -291,15 +283,15 @@ namespace MMDataStructures.DictionaryBacking {
             }
 
             var valueBytes = Config.Serializer.Serialize(value);
-            using (var vva = _values.Fm.Mmf.CreateViewAccessor()) {
+            using (var vvaw = _values.Fm.CreateViewWrap()) {
                 var cursor = _largestSeenValuePosition;
                 var valuesLength = valueBytes.Length;
                 _values.Fm.EnsureCapacity(cursor + 4);
-                vva.Write(cursor, valuesLength);
+                vvaw.VA.UnsafeWriteInt32(cursor, valuesLength);
                 cursor = cursor + 4;
 
                 _values.Fm.EnsureCapacity(cursor + valuesLength);
-                vva.WriteArray(cursor, valueBytes, 0, valuesLength);
+                vvaw.VA.UnsafeWriteBytes(cursor, valueBytes);
                 cursor = cursor + valuesLength;
                 _largestSeenValuePosition = cursor;
             }
@@ -314,29 +306,30 @@ namespace MMDataStructures.DictionaryBacking {
             var updateKeyPos = nextKeyFilePos;
             if (nextKeyFilePos == 0) return false;
 
-            using (var kva = _keys.Fm.Mmf.CreateViewAccessor()) {
+            using (var kvaw = _keys.Fm.CreateViewWrap()) {
                 var keysWithSameHash = 0;
                 do {
                     keysWithSameHash++;
                     var keyCursor = nextKeyFilePos;
 
-                    var keyLengthExisting = kva.ReadInt32(keyCursor);
+                    var keyLengthExisting = kvaw.VA.UnsafeReadInt32(keyCursor);
                     keyCursor = keyCursor + 4;
 
-                    var keyBytesExisting = new byte[keyLengthExisting];
-                    kva.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                    //var keyBytesExisting = new byte[keyLengthExisting];
+                    //kvaw.VA.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                    var keyBytesExisting = kvaw.VA.UnsafeReadBytes(keyCursor, keyLengthExisting);
                     keyCursor = keyCursor + keyLengthExisting;
 
                     keyCursor = keyCursor + 8; // skip valuepos
                     var newUpdateKeyPos = keyCursor; // store pos space for chained key pos
-                    nextKeyFilePos = kva.ReadInt64(keyCursor); // next key pos with same hash
+                    nextKeyFilePos = kvaw.VA.UnsafeReadInt64(keyCursor); // next key pos with same hash
 
                     if (ByteArrayCompare.Equals(keyBytes, keyBytesExisting)) {
                         if (keysWithSameHash == 1) {
                             _hashCodeLookup[pos] = nextKeyFilePos;
                         } else {
                             _keys.Fm.EnsureCapacity(updateKeyPos + 8);
-                            kva.Write(updateKeyPos, nextKeyFilePos);
+                            kvaw.VA.UnsafeWriteInt64(updateKeyPos, nextKeyFilePos);
                         }
                         Count--;
                         _version++;
@@ -366,30 +359,32 @@ namespace MMDataStructures.DictionaryBacking {
             var keyFilePos = _hashCodeLookup[pos];
 
             byte[] keyBytes = Config.Serializer.Serialize(key);
-            using (var kva = _keys.Fm.Mmf.CreateViewAccessor())
-            using (var vva = _values.Fm.Mmf.CreateViewAccessor()) {
+            using (var kvaw = _keys.Fm.CreateViewWrap())
+            using (var vvaw = _values.Fm.CreateViewWrap()) {
                 while (keyFilePos != 0) {
                     var keyCursor = keyFilePos;
-                    int keyLengthExisting = kva.ReadInt32(keyCursor);
+                    int keyLengthExisting = kvaw.VA.UnsafeReadInt32(keyCursor);
                     keyCursor = keyCursor + 4;
 
-                    var keyBytesExisting = new byte[keyLengthExisting];
-                    kva.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                    //var keyBytesExisting = new byte[keyLengthExisting];
+                    //kvaw.Va.ReadArray(keyCursor, keyBytesExisting, 0, keyLengthExisting);
+                    var keyBytesExisting = kvaw.VA.UnsafeReadBytes(keyCursor, keyLengthExisting);
                     keyCursor = keyCursor + keyLengthExisting;
 
                     if (ByteArrayCompare.Equals(keyBytes, keyBytesExisting)) {
                         // we have match on the key
-                        var valCursor = kva.ReadInt64(keyCursor);
+                        var valCursor = kvaw.VA.UnsafeReadInt64(keyCursor);
                         // increment keyCursor after the if block
-                        int valLength = vva.ReadInt32(valCursor);
+                        int valLength = vvaw.VA.UnsafeReadInt32(valCursor);
                         valCursor += 4;
-                        var valBytes = new byte[valLength];
-                        vva.ReadArray(valCursor, valBytes, 0, valLength);
+                        //var valBytes = new byte[valLength];
+                        //vvaw.UnsafeReadBytes(valCursor, valBytes, 0, valLength);
+                        var valBytes = vvaw.VA.UnsafeReadBytes(valCursor, valLength);
                         value = Config.Serializer.Deserialize<TValue>(valBytes);
                         return true;
                     }
                     keyCursor += 8; // skip valueposition
-                    keyFilePos = kva.ReadInt64(keyCursor); // _keys.ReadVLong(); // next key pos with same hash
+                    keyFilePos = kvaw.VA.UnsafeReadInt64(keyCursor); // _keys.ReadVLong(); // next key pos with same hash
                 }
             }
 
@@ -399,7 +394,7 @@ namespace MMDataStructures.DictionaryBacking {
 
         public bool ByteCompare(TValue value, TValue existing) {
             return ByteArrayCompare.UnSafeEquals(Config.Serializer.Serialize(value),
-                                                 Config.Serializer.Serialize(existing));
+                Config.Serializer.Serialize(existing));
 
         }
 
@@ -408,21 +403,22 @@ namespace MMDataStructures.DictionaryBacking {
         }
 
         public IEnumerable<TKey> AllKeys() {
-            using (var kva = _keys.Fm.Mmf.CreateViewAccessor()) {
+            using (var kvaw = _keys.Fm.CreateViewWrap()) {
                 foreach (long firstKeyPosition in _hashCodeLookup) {
                     long keyPosition = firstKeyPosition;
                     while (keyPosition != 0) {
                         var keyCursor = keyPosition;
-                        int keyLength = kva.ReadInt32(keyCursor); // _keys.ReadVInt();
+                        int keyLength = kvaw.VA.UnsafeReadInt32(keyCursor);
                         keyCursor += 4;
-                        var keyBytesExisting = new byte[keyLength];
-                        kva.ReadArray(keyCursor, keyBytesExisting, 0, keyLength);
+                        //var keyBytesExisting = new byte[keyLength];
+                        //kvaw.VA.ReadArray(keyCursor, keyBytesExisting, 0, keyLength);
+                        var keyBytesExisting = kvaw.VA.UnsafeReadBytes(keyCursor, keyLength);
                         keyCursor = keyCursor + keyLength;
 
                         var key = Config.Serializer.Deserialize<TKey>(keyBytesExisting);
                         keyCursor += 8; // skip value pos
                         yield return key;
-                        keyPosition = kva.ReadInt64(keyCursor);
+                        keyPosition = kvaw.VA.UnsafeReadInt64(keyCursor);
                     }
                 }
             }
@@ -430,21 +426,69 @@ namespace MMDataStructures.DictionaryBacking {
 
         public IEnumerable<TValue> AllValues() {
             IEnumerator<KeyValuePair<TKey, TValue>> enumerator = GetEnumerator();
-            while (enumerator.MoveNext()) {
-                yield return enumerator.Current.Value;
-            }
+            while (enumerator.MoveNext()) { yield return enumerator.Current.Value; }
         }
 
         public void Clear() {
             // TODO wrong logic here for persistent vs temp vs in-memory? 
             _hashCodeLookup = new Array<long>(_capacity, _path, true);
-            _keys = new Array<byte>(_capacity * _defaultKeySize, _path, true);
-            _values = new Array<byte>(_capacity * _defaultValueSize, _path, true);
+            _keys = new Array<byte>(_capacity*_defaultKeySize, _path, true);
+            _values = new Array<byte>(_capacity*_defaultValueSize, _path, true);
             _largestSeenKeyPosition = 1;
             _largestSeenValuePosition = 0;
             Count = 0;
             _version++;
         }
+
         #endregion
+    }
+
+
+    public static class MMVAExtensions {
+        public static unsafe byte[] UnsafeReadBytes(this MemoryMappedViewAccessor view, long offset, int num) {
+            try {
+                byte[] arr = new byte[num];
+                byte* ptr = (byte*) 0;
+                view.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                IntPtr newPtr = new IntPtr((new IntPtr(ptr)).ToInt64() + offset);
+                Marshal.Copy(newPtr, arr, 0, num);
+                return arr;
+            } finally {
+                view.SafeMemoryMappedViewHandle.ReleasePointer();
+            }
+            
+        }
+
+        public static int UnsafeReadInt32(this MemoryMappedViewAccessor view, long offset) {
+            var bytes = view.UnsafeReadBytes(offset, 4);
+            return BitConverter.ToInt32(bytes, 0);
+        }
+
+        public static int UnsafeReadInt64(this MemoryMappedViewAccessor view, long offset) {
+            var bytes = view.UnsafeReadBytes(offset, 8);
+            return BitConverter.ToInt32(bytes, 0);
+        }
+
+        public static unsafe void UnsafeWriteBytes(this MemoryMappedViewAccessor view, long offset, byte[] data) {
+            try {
+                byte* ptr = (byte*) 0;
+                view.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                IntPtr newPtr = new IntPtr((new IntPtr(ptr)).ToInt64() + offset);
+                Marshal.Copy(data, 0, newPtr, data.Length);
+            } finally {
+                view.SafeMemoryMappedViewHandle.ReleasePointer();
+            }
+        }
+
+        public static void UnsafeWriteInt32(this MemoryMappedViewAccessor view, long offset, int value) {
+            var bytes = BitConverter.GetBytes(value);
+            view.UnsafeWriteBytes(offset, bytes);
+        }
+
+        public static void UnsafeWriteInt64(this MemoryMappedViewAccessor view, long offset, long value) {
+            var bytes = BitConverter.GetBytes(value);
+            view.UnsafeWriteBytes(offset, bytes);
+        }
+
     }
 }
