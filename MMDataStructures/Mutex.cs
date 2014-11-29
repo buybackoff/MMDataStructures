@@ -3,6 +3,9 @@ using ST = System.Threading;
 
 namespace MMDataStructures
 {
+
+    // TODO adjust locks for exlusive write/read-only modes
+
     /// <summary>
     /// Named mutex
     /// </summary>

@@ -50,9 +50,9 @@ namespace MMDataStructures {
         /// Size of Mmf in bytes
         /// </summary>
         public long Capacity { get; private set; }
-        public Mutex FileMutex { get; }
+        public Mutex FileMutex { get; private set; }
         public MemoryMappedFile Mmf { get; set; }
-        public PersistenceMode PersistenceMode { get; }
+        public PersistenceMode PersistenceMode { get; private set; }
 
         private readonly string _fileName;
 

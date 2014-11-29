@@ -30,7 +30,7 @@ namespace BenchmarkConsoleApp
         }
         #endregion
 
-        private static int MaxCount = 1000000;
+        private static int MaxCount = 100000;
 
         public static int Main(string[] args)
         {
@@ -40,9 +40,9 @@ namespace BenchmarkConsoleApp
             Debug.Listeners.Add(tr1);
 
             //SingelThread_HashInMemory();
-            //SingelThread_HashOnDisk();
+            SingelThread_HashOnDisk();
             //Threaded_HashInMemory();
-            Threaded_HashOnDisk();
+            //Threaded_HashOnDisk();
 
             /*//Test mapper.
             SingelThread_HashCompositeOnDisk();

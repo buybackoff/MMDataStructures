@@ -1,7 +1,7 @@
 MMDataStructures
 ==================
 
-Copied from https://mmf.codeplex.com/, replaced all serializers 
+Adapted and improved from https://mmf.codeplex.com/. Replaced all serializers 
 by BinaryFormatter with easy option to replace it by setting a static `Config.Serializer`
  property. Structs deserialization must support zero bytes array - wrap any existing 
 serializer as shown [here](https://github.com/buybackoff/MMDataStructures/blob/master/MMDataStructures/Serializer.cs).
@@ -20,4 +20,4 @@ serializer as shown [here](https://github.com/buybackoff/MMDataStructures/blob/m
 
 
 
-Licensed as LGPL. (copy left from https://mmf.codeplex.com/license)
+[Licensed as Apache 2.0.](https://github.com/buybackoff/MMDataStructures/blob/master/LICENSE.md)
