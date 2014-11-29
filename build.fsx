@@ -30,10 +30,10 @@ let summary = "Memory mapped data structures: dictionary, arrays and list"
 
 // Longer description of the project
 // (used as a description for NuGet package; line breaks are automatically cleaned up)
-let description = """Copied from https://mmf.codeplex.com/, replaced all serializers by BinaryFormatter with easy option to replace it by setting a static `Config.Serializer` property (structs deserialization must support zero bytes array)."""
+let description = """See GitHub repo for details."""
 
 // List of author names (for NuGet package)
-let authors = [ "Original mmf.codeplex.com by Mikael Svenson (@mikaelsvenson)"; "Victor Baybekov (@buybackoff)" ]
+let authors = [ "Victor Baybekov (@buybackoff)";"Mikael Svenson (@mikaelsvenson)" ]
 // Tags for your project (for NuGet package)
 let tags = "Memory mapped data structures dictionary arrays list"
 

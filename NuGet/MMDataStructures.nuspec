@@ -5,7 +5,7 @@
     <version>@build.number@</version>
     <authors>@authors@</authors>
     <owners>@authors@</owners>
-    <licenseUrl>http://github.com/buybackoff/MMDataStructures/blob/master/LICENSE.txt</licenseUrl>
+    <licenseUrl>http://github.com/buybackoff/MMDataStructures/blob/master/LICENSE.md</licenseUrl>
     <projectUrl>https://github.com/buybackoff/MMDataStructures</projectUrl>
     <iconUrl>https://raw.githubusercontent.com/buybackoff/MMDataStructures/master/docs/files/img/logo.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
