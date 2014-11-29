@@ -73,20 +73,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ByteArray.cs" />
     <Compile Include="ByteArrayCompare.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="DictionaryBacking\BackingUnknownSize.cs" />
     <Compile Include="DictionaryBacking\HashHelpers.cs" />
-    <Compile Include="IViewManager.cs" />
+    <Compile Include="Mutex.cs" />
+    <Compile Include="PersistenceMode.cs" />
     <Compile Include="Serializer.cs" />
     <Compile Include="KeyValueFileOffset.cs" />
-    <Compile Include="IDictionaryPersist.cs" />
     <Compile Include="Dictionary.cs" />
     <Compile Include="Array.cs" />
     <Compile Include="List.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ViewManager.cs" />
+    <Compile Include="FileManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0">

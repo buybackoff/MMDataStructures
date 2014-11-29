@@ -7,7 +7,7 @@ namespace MMDataStructures.DictionaryBacking
     internal static class HashHelpers
     {
         // Fields
-        private static readonly int[] _primes = new[]
+        private static readonly int[] Primes = new[]
                                                     {
                                                         3, 7, 11, 0x11, 0x17, 0x1d, 0x25, 0x2f, 0x3b, 0x47, 0x59, 0x6b,
                                                         0x83, 0xa3, 0xc5, 0xef,
@@ -29,15 +29,15 @@ namespace MMDataStructures.DictionaryBacking
         /// <param name="min"></param>
         /// <returns></returns>
         [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
-        internal static int GetPrime(int min)
+        internal static int GetNextPrime(int min)
         {
             if (min < 0)
             {
                 throw new ArgumentException("CapacityOverflow");
             }
-            for (int i = 0; i < _primes.Length; i++)
+            for (int i = 0; i < Primes.Length; i++)
             {
-                int num2 = _primes[i];
+                int num2 = Primes[i];
                 if (num2 >= min)
                 {
                     return num2;

@@ -30,7 +30,7 @@ namespace BenchmarkConsoleApp
         }
         #endregion
 
-        private static int MaxCount = 100000;
+        private static int MaxCount = 5000; //00;
 
         public static int Main(string[] args)
         {
@@ -40,9 +40,9 @@ namespace BenchmarkConsoleApp
             Debug.Listeners.Add(tr1);
 
             //SingelThread_HashInMemory();
-            //SingelThread_HashOnDisk();
+            SingelThread_HashOnDisk();
             //Threaded_HashInMemory();
-            Threaded_HashOnDisk();
+            //Threaded_HashOnDisk();
 
             /*//Test mapper.
             SingelThread_HashCompositeOnDisk();
@@ -55,16 +55,12 @@ namespace BenchmarkConsoleApp
         private static void Threaded_HashOnDisk()
         {
             Console.WriteLine("Threaded_HashOnDisk");
-            string path = AppDomain.CurrentDomain.BaseDirectory;
-            BackingUnknownSize<string, string> backingFile = new BackingUnknownSize<string, string>(path, MaxCount);
-
-            Dictionary<string, string> dict = new Dictionary<string, string>(backingFile);
+            var dict = new Dictionary<string, string>("Threaded_HashOnDisk", 100000);
 
             Console.WriteLine("Queuing {0} items to Thread Pool", MaxCount);
             Console.WriteLine("Queue to Thread Pool 0");
-            System.Collections.Generic.List<WaitHandle> handles = 
-                new System.Collections.Generic.List<WaitHandle>();
-            Stopwatch sw = Stopwatch.StartNew();
+            var handles = new System.Collections.Generic.List<WaitHandle>();
+            var sw = Stopwatch.StartNew();
             for (int iItem = 1; iItem < 20; iItem++)
             {
                 ManualResetEvent mre = new ManualResetEvent(false);
@@ -90,10 +86,7 @@ namespace BenchmarkConsoleApp
         private static void Threaded_HashCompositeOnDisk()
         {
             Console.WriteLine("Threaded_HashOnDisk");
-            string path = AppDomain.CurrentDomain.BaseDirectory;
-            BackingUnknownSize<string, Person> backingFile = new BackingUnknownSize<string, Person>(path, MaxCount);
-
-            Dictionary<string, Person> dict = new Dictionary<string, Person>(backingFile);
+            var dict = new Dictionary<string, Person>("Threaded_HashCompositeOnDisk", 100000);
 
             Console.WriteLine("Queuing {0} items to Thread Pool", MaxCount);
             Console.WriteLine("Queue to Thread Pool 0");
@@ -160,10 +153,7 @@ namespace BenchmarkConsoleApp
         private static void SingelThread_HashOnDisk()
         {
             Console.WriteLine("SingelThread_HashOnDisk");
-            string path = AppDomain.CurrentDomain.BaseDirectory;
-            BackingUnknownSize<string, string> backingFile = new BackingUnknownSize<string, string>(path, MaxCount);
-
-            Dictionary<string, string> dict = new Dictionary<string, string>(backingFile);
+            var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", 1000000);
 
             Stopwatch sw = Stopwatch.StartNew();
             for (int i = 0; i < MaxCount; i++)
@@ -179,10 +169,7 @@ namespace BenchmarkConsoleApp
         private static void SingelThread_HashCompositeOnDisk()
         {
             Console.WriteLine("SingelThread_HashOnDisk");
-            string path = AppDomain.CurrentDomain.BaseDirectory;
-            BackingUnknownSize<int, Person> backingFile = new BackingUnknownSize<int, Person>(path, MaxCount);
-
-            Dictionary<int,Person > dict = new Dictionary<int, Person>(backingFile);
+            var dict = new Dictionary<int, Person>("SingelThread_HashCompositeOnDisk", 100000);
 
             Stopwatch sw = Stopwatch.StartNew();
             for (int i = 0; i < MaxCount; i++)

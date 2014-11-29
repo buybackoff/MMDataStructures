@@ -14,59 +14,25 @@ namespace MMDataStructures
     /// <typeparam name="TValue"></typeparam>
     public class Dictionary<TKey, TValue> : IDictionary<TKey, TValue>, IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
-        private IDictionaryPersist<TKey, TValue> _persistHandler;
-        private int _version;
+        private BackingUnknownSize<TKey, TValue> _persistHandler;
+        private Mutex Mutex { get { return _persistHandler.Mutex; } }
 
-        public Dictionary(IDictionaryPersist<TKey, TValue> persistHandler)
+        private Dictionary(BackingUnknownSize<TKey, TValue> persistHandler)
         {
             _persistHandler = persistHandler;
         }
 
-        /// <summary>
-        /// Initialize a new dictionary. Default bucket size is 20000.
-        /// </summary>
-        /// <param name="path">Folder to store files in</param>
-        public Dictionary(string path)
-            : this(new BackingUnknownSize<TKey, TValue>(path, 20000, false, string.Empty))
-        {
-        }
 
         /// <summary>
         /// Initialize a new dictionary.
         /// </summary>
-        /// <param name="path">Folder to store files in</param>
+        /// <param name="fileName">Folder to store files in</param>
         /// <param name="capacity">Number of buckets for the hash</param>
-        public Dictionary(string path, int capacity)
-            : this(new BackingUnknownSize<TKey, TValue>(path, capacity, false, string.Empty))
+        /// <param name="persistenceMode"></param>
+        public Dictionary(string fileName, int capacity, PersistenceMode persistenceMode = PersistenceMode.TemporaryPersist)
+            : this(new BackingUnknownSize<TKey, TValue>(fileName, capacity, persistenceMode))
         {
         }
-
-        /// <summary>
-        /// Initialize a new dictionary.
-        /// </summary>
-        /// <param name="path">Folder to store files in</param>
-        /// <param name="capacity">Number of buckets for the hash</param>
-        /// <param name="keepFile">True = file will not be deleted upon exit</param>
-        /// <param name="dictionaryName">Unique name to differentiate collections</param>
-        public Dictionary(string path, int capacity, bool keepFile, string dictionaryName)
-            : this(new BackingUnknownSize<TKey, TValue>(path, capacity, keepFile, dictionaryName ))
-        {
-        }
-
-        ~Dictionary()
-        {
-            Dispose();
-        }
-
-        public void Dispose()
-        {
-            if(_persistHandler != null)
-                _persistHandler.Dispose();
-            _persistHandler = null;
-        }
-
-        public bool IsStruct { get; set; }
 
         #region IDictionary<TKey,TValue> Members
 
@@ -80,16 +46,15 @@ namespace MMDataStructures
         ///
         ///<param name="key">The key to locate in the <see cref="T:System.Collections.Generic.IDictionary`2"></see>.</param>
         ///<exception cref="T:System.ArgumentNullException">key is null.</exception>
-        public bool ContainsKey(TKey key)
-        {
-            _lock.EnterReadLock();
+        public bool ContainsKey(TKey key) {
+            Mutex.WaitOne();
             try
             {
                 return _persistHandler.ContainsKey(key);
             }
             finally
             {
-                _lock.ExitReadLock();
+                Mutex.ReleaseMutex();
             }
         }
 
@@ -103,17 +68,16 @@ namespace MMDataStructures
         ///<exception cref="T:System.NotSupportedException">The <see cref="T:System.Collections.Generic.IDictionary`2"></see> is read-only.</exception>
         ///<exception cref="T:System.ArgumentException">An element with the same key already exists in the <see cref="T:System.Collections.Generic.IDictionary`2"></see>.</exception>
         ///<exception cref="T:System.ArgumentNullException">key is null.</exception>
-        public void Add(TKey key, TValue value)
-        {
-            _lock.EnterWriteLock();
+        public void Add(TKey key, TValue value) {
+            Mutex.WaitOne();
             try
             {
                 _persistHandler.Add(key, value);
-                _version++;
+                
             }
             finally
             {
-                _lock.ExitWriteLock();
+                Mutex.ReleaseMutex();
             }
         }
 
@@ -130,29 +94,26 @@ namespace MMDataStructures
         ///<exception cref="T:System.ArgumentNullException">key is null.</exception>
         public bool Remove(TKey key)
         {
-            _lock.EnterWriteLock();
+            Mutex.WaitOne();
             try
             {
-                bool success = _persistHandler.Remove(key);
-                if (success) _version++;
-                return success;
+                return _persistHandler.Remove(key);
             }
             finally
             {
-                _lock.ExitWriteLock();
+                Mutex.ReleaseMutex();
             }
         }
 
-        public bool TryGetValue(TKey key, out TValue value)
-        {
-            _lock.EnterReadLock();
+        public bool TryGetValue(TKey key, out TValue value) {
+            Mutex.WaitOne();
             try
             {
                 return _persistHandler.TryGetValue(key, out value);
             }
             finally
             {
-                _lock.ExitReadLock();
+                Mutex.ReleaseMutex();
             }
         }
 
@@ -181,7 +142,7 @@ namespace MMDataStructures
             }
             set
             {
-                _lock.EnterWriteLock();
+                Mutex.WaitOne();
                 try
                 {
                     TValue existing;
@@ -197,11 +158,11 @@ namespace MMDataStructures
                     {
                         _persistHandler.Add(key, value);
                     }
-                    _version++;
+
                 }
                 finally
                 {
-                    _lock.ExitWriteLock();
+                    Mutex.ReleaseMutex();
                 }
             }
         }
@@ -216,7 +177,7 @@ namespace MMDataStructures
         ///
         public ICollection<TKey> Keys
         {
-            get { return new System.Collections.Generic.List<TKey>(_persistHandler.AllKeys()); }
+            get { return new List<TKey>(_persistHandler.AllKeys()); }
         }
 
         ///<summary>
@@ -229,7 +190,7 @@ namespace MMDataStructures
         ///
         public ICollection<TValue> Values
         {
-            get { return new System.Collections.Generic.List<TValue>(_persistHandler.AllValues()); }
+            get { return new List<TValue>(_persistHandler.AllValues()); }
         }
 
         ///<summary>
@@ -250,15 +211,15 @@ namespace MMDataStructures
         ///<exception cref="T:System.NotSupportedException">The <see cref="T:System.Collections.Generic.ICollection`1"></see> is read-only. </exception>
         public void Clear()
         {
-            _lock.EnterWriteLock();
+            Mutex.WaitOne();
             try
             {
                 _persistHandler.Clear();
-                _version++;
+                
             }
             finally
             {
-                _lock.ExitWriteLock();
+                Mutex.ReleaseMutex();
             }
         }
 
@@ -370,15 +331,8 @@ namespace MMDataStructures
         ///A <see cref="T:System.Collections.Generic.IEnumerator`1"></see> that can be used to iterate through the collection.
         ///</returns>
         ///<filterpriority>1</filterpriority>
-        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-        {
-            int currentVersion = _version;
-            for (IEnumerator<KeyValuePair<TKey, TValue>> enumerator = _persistHandler.GetEnumerator(); enumerator.MoveNext(); )
-            {
-                if (currentVersion != _version)
-                    throw new InvalidOperationException("Collection modified during enumeration");
-                yield return enumerator.Current;
-            }
+        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() {
+            return _persistHandler.GetEnumerator();
         }
 
         ///<summary>
@@ -400,5 +354,19 @@ namespace MMDataStructures
         {
             return _persistHandler.ContainsValue(value);
         }
+
+
+
+        ~Dictionary() {
+            Dispose();
+        }
+
+        public void Dispose() {
+            if (_persistHandler != null)
+                _persistHandler.Dispose();
+            _persistHandler = null;
+        }
+
+
     }
 }

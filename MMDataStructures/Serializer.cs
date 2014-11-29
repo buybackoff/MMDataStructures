@@ -1,13 +1,12 @@
-﻿using System.Collections.Generic;
-using System.Text;
+﻿using System;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization.Formatters.Binary;
 //using Newtonsoft.Json;
-using System.Runtime.InteropServices;
-using System;
 
-// From Ractor.Persistece
+// From Ractor.Persistence
+// Commented out code is left intentionally as an example of how to plug in any other serializer
 
 namespace MMDataStructures
 {
@@ -32,7 +31,7 @@ namespace MMDataStructures
         {
             if (typeof(T).IsValueType)
             {
-                return StructToBytes<T>(value);
+                return StructToBytes(value);
             }
             else
             {
@@ -80,7 +79,7 @@ namespace MMDataStructures
         }
 
 
-        private byte[] StructToBytes<Ts>(Ts str)
+        private byte[] StructToBytes<TS>(TS str)
         {
             int size = Marshal.SizeOf(str);
             byte[] arr = new byte[size];
@@ -92,15 +91,15 @@ namespace MMDataStructures
             return arr;
         }
 
-        private Ts BytesToStruct<Ts>(byte[] arr)
+        private TS BytesToStruct<TS>(byte[] arr)
         {
-            Ts str = default(Ts);
+            TS str = default(TS);
             int size = Marshal.SizeOf(str);
             IntPtr ptr = Marshal.AllocHGlobal(size);
 
             Marshal.Copy(arr, 0, ptr, size);
 
-            str = (Ts)Marshal.PtrToStructure(ptr, str.GetType());
+            str = (TS)Marshal.PtrToStructure(ptr, str.GetType());
             Marshal.FreeHGlobal(ptr);
 
             return str;
