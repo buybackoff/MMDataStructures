@@ -17,7 +17,7 @@ namespace MMDataStructures.DictionaryBacking {
         // ReSharper disable once StaticMemberInGenericType
         private static readonly byte[] EmptyPosition = new byte[8];
 
-        private readonly int _capacity;
+        private readonly long _capacity;
 
         private Array<long> _hashCodeLookup;
         private Array<byte> _keys;
@@ -48,9 +48,9 @@ namespace MMDataStructures.DictionaryBacking {
 
             SetDefaultKeyValueSize();
 
-            _hashCodeLookup = new Array<long>(_capacity, _hashFile, true, persistenceMode);
-            _keys = new Array<byte>(_capacity*_defaultKeySize, _keyFile, true, persistenceMode);
-            _values = new Array<byte>(_capacity*_defaultValueSize, _valueFile, true, persistenceMode);
+            _hashCodeLookup = new Array<long>((long)_capacity, _hashFile, true, persistenceMode);
+            _keys = new Array<byte>((long)(_capacity*_defaultKeySize), _keyFile, true, persistenceMode);
+            _values = new Array<byte>((long)(_capacity * _defaultKeySize), _valueFile, true, persistenceMode);
 
             InitDictionary();
         }
@@ -94,7 +94,7 @@ namespace MMDataStructures.DictionaryBacking {
 
         private int GetHashCodePosition(TKey key) {
             int num = key.GetHashCode() & 0x7fffffff;
-            int index = num%_capacity;
+            int index = num % (int)_capacity;
             return index;
         }
 

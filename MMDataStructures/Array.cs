@@ -141,16 +141,16 @@ namespace MMDataStructures {
 
         public IEnumerator<T> GetEnumerator() {
             var currentVersion = _version;
-            using (var va = Fm.CreateViewWrap()) {
+            using (var va = Fm.Mmf.CreateViewStream()){//.CreateViewWrap()) {
                 //Trace.Assert(vs.Position == 0L);
-                //var buffer = new byte[_dataSize];
+                var buffer = new byte[_dataSize];
                 for (int i = 0; i < Length; i++) {
                     if (currentVersion != _version) throw new InvalidOperationException("Collection modified during enumeration");
-                    //var c = va.Read(buffer, 0, _dataSize);
-                    var buffer = va.VA.UnsafeReadBytes(i*_dataSize, _dataSize);
+                    var c = va.Read(buffer, 0, _dataSize);
+                    //var buffer = va.VA.UnsafeReadBytes(i*_dataSize, _dataSize);
                     //Trace.Assert(c == _dataSize);
                     yield return Config.Serializer.Deserialize<T>(buffer);
-                    //Array.Clear(buffer, 0, _dataSize);
+                    Array.Clear(buffer, 0, _dataSize);
                 }
             }
         }

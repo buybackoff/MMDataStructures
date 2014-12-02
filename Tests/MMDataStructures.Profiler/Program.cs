@@ -1,8 +1,12 @@
 ﻿using System;
+using System.Data;
 using System.Diagnostics;
 using System.Threading;
 using MMDataStructures;
 using MMDataStructures.DictionaryBacking;
+using ServiceStack.DataAnnotations;
+using ServiceStack.OrmLite;
+using ServiceStack.Text;
 
 namespace BenchmarkConsoleApp
 {
@@ -30,7 +34,7 @@ namespace BenchmarkConsoleApp
         }
         #endregion
 
-        private static int MaxCount = 100000;
+        private static int MaxCount = 268435457;
 
         public static int Main(string[] args)
         {
@@ -43,6 +47,8 @@ namespace BenchmarkConsoleApp
             SingelThread_HashOnDisk();
             //Threaded_HashInMemory();
             //Threaded_HashOnDisk();
+
+            //SingelThread_SQLite();
 
             /*//Test mapper.
             SingelThread_HashCompositeOnDisk();
@@ -153,14 +159,17 @@ namespace BenchmarkConsoleApp
         private static void SingelThread_HashOnDisk()
         {
             Console.WriteLine("SingelThread_HashOnDisk");
-            var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", MaxCount, PersistenceMode.TemporaryPersist);
+            //var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", MaxCount);
+            var dict = new Dictionary<long, long>("SingelThread_HashOnDisk", MaxCount);
 
             Stopwatch sw = Stopwatch.StartNew();
-            for (int i = 0; i < MaxCount; i++)
+            for (long i = 0; i < MaxCount; i++)
             {
-                string key = Guid.NewGuid().ToString();
-                dict.Add(key, key);
-                if (string.IsNullOrEmpty(dict[key])) throw new Exception();
+                //string key = Guid.NewGuid().ToString();
+                //dict.Add(key, key);
+                dict.Add(i, i);
+                //if (string.IsNullOrEmpty(dict[key])) throw new Exception();
+                if (dict[i] != i) throw new Exception();
             }
             sw.Stop();
             Console.WriteLine(sw.Elapsed);
@@ -178,6 +187,9 @@ namespace BenchmarkConsoleApp
                 dict.Add(i, new Person() { Id = i, Name = "Name" + i });
                 Person p = null;
                 if (!dict.TryGetValue(i,out p)) throw new Exception();
+                if (i/100000 == 0) {
+                    Console.WriteLine("Count: " + i);
+                }
             }
             sw.Stop();
             Console.WriteLine(sw.Elapsed);
@@ -202,6 +214,36 @@ namespace BenchmarkConsoleApp
             sw.Stop();
             Console.WriteLine(sw.Elapsed);
         }
-        */ 
+        */
+
+        private class StringPOCO {
+            [PrimaryKey]
+            public string Key { get; set; }
+            public string Value { get; set; }
+        }
+
+        private static void SingelThread_SQLite() {
+            var dbFactory = new OrmLiteConnectionFactory(
+    "App_Data/db.sqlite", SqliteDialect.Provider);
+            using (IDbConnection db = dbFactory.Open()) {
+                db.DropAndCreateTable<StringPOCO>();
+                Console.WriteLine("SingelThread_SQLite");
+                Stopwatch sw = Stopwatch.StartNew();
+                for (int i = 0; i < 1000; i++) {
+                    string key = Guid.NewGuid().ToString();
+                    var poco = new StringPOCO() {
+                        Key = key,
+                        Value = key,
+                    };
+                    db.Save(poco);
+                    var savedpoco = db.SingleById<StringPOCO>(key);
+                    if (savedpoco.Value != key) throw new Exception();
+                }
+                sw.Stop();
+                Console.WriteLine(sw.Elapsed);
+            }
+
+            
+        }
     }
 }

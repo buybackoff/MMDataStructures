@@ -116,7 +116,7 @@ namespace MMDataStructures {
                             MemoryMappedFileAccess.ReadWrite, mmfs, HandleInheritability.Inheritable,
                             false);
                     case PersistenceMode.Ephemeral:
-                        return MemoryMappedFile.CreateOrOpen(fileName, capacity, MemoryMappedFileAccess.ReadWrite);
+                        return MemoryMappedFile.CreateOrOpen(Path.GetFileName(fileName), capacity, MemoryMappedFileAccess.ReadWrite);
                     default:
                         throw new ArgumentOutOfRangeException("persistenceMode");
                 }
@@ -141,6 +141,7 @@ namespace MMDataStructures {
         /// </summary>
         /// <param name="requiredMinCapacity">The size to grow from</param>
         public void EnsureCapacity(long requiredMinCapacity) {
+            Trace.Assert(requiredMinCapacity > 0); // catch int overflow if there is more than one fixed in Backing constructor
             if (Capacity >= requiredMinCapacity) return;
             FileMutex.WaitOne();
             try {
