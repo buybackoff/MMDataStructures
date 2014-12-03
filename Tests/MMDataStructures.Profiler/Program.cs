@@ -2,11 +2,13 @@
 using System.Data;
 using System.Diagnostics;
 using System.Threading;
+using Microsoft.Isam.Esent.Interop;
 using MMDataStructures;
 using MMDataStructures.DictionaryBacking;
 using ServiceStack.DataAnnotations;
 using ServiceStack.OrmLite;
 using ServiceStack.Text;
+using EsentCollections = Microsoft.Isam.Esent.Collections.Generic;
 
 namespace BenchmarkConsoleApp
 {
@@ -34,7 +36,7 @@ namespace BenchmarkConsoleApp
         }
         #endregion
 
-        private static int MaxCount = 268435457;
+        private static int MaxCount = 10000000;
 
         public static int Main(string[] args)
         {
@@ -49,7 +51,7 @@ namespace BenchmarkConsoleApp
             //Threaded_HashOnDisk();
 
             //SingelThread_SQLite();
-
+            //SingelThread_Esent();
             /*//Test mapper.
             SingelThread_HashCompositeOnDisk();
             Threaded_HashCompositeOnDisk();
@@ -160,14 +162,14 @@ namespace BenchmarkConsoleApp
         {
             Console.WriteLine("SingelThread_HashOnDisk");
             //var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", MaxCount);
-            var dict = new Dictionary<long, long>("SingelThread_HashOnDisk", MaxCount);
+            var dict = new Dictionary<long, long>("SingelThread_HashOnDisk", MaxCount, PersistenceMode.Persist);
 
             Stopwatch sw = Stopwatch.StartNew();
             for (long i = 0; i < MaxCount; i++)
             {
                 //string key = Guid.NewGuid().ToString();
                 //dict.Add(key, key);
-                dict.Add(i, i);
+                //dict.Add(i, i);
                 //if (string.IsNullOrEmpty(dict[key])) throw new Exception();
                 if (dict[i] != i) throw new Exception();
             }
@@ -245,5 +247,26 @@ namespace BenchmarkConsoleApp
 
             
         }
+
+        private static void SingelThread_Esent() {
+            Console.WriteLine("SingelThread_Esent");
+            //var dict = new Dictionary<string, string>("SingelThread_HashOnDisk", MaxCount);
+            //var dict = new Dictionary<long, long>("SingelThread_HashOnDisk", MaxCount);
+            var dict = new EsentCollections.PersistentDictionary<long, long>("./App_data");
+            
+            Stopwatch sw = Stopwatch.StartNew();
+            for (long i = 0; i < MaxCount; i++) {
+                //string key = Guid.NewGuid().ToString();
+                //dict.Add(key, key);
+                //dict.Add(i, i);
+                //dict[i] = i;
+                //if (string.IsNullOrEmpty(dict[key])) throw new Exception();
+                if (dict[i] != i) throw new Exception();
+            }
+            sw.Stop();
+            Console.WriteLine(sw.Elapsed);
+            dict.Dispose();
+        }
+
     }
 }
