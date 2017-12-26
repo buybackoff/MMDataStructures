@@ -39,7 +39,7 @@ namespace MMDataStructures {
             else {
                 var newWrap = new ViewWrap(Mmf);
                 _allWraps.Add(newWrap);
-                return _vw.Value = new ViewWrap(Mmf);
+                return _vw.Value = newWrap;
             }
         }
 
@@ -177,21 +177,22 @@ namespace MMDataStructures {
         #endregion
 
         #region Disposal
-        //~FileManager()
-        //{
-        //    Dispose();
-        //}
+        ~FileManager() {
+            Dispose(false);
+        }
 
         public void Dispose() {
-            foreach (var viewWrap in _allWraps) {
-                viewWrap._va.Dispose();
-            }
-            _vw.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+        protected virtual void Dispose(bool disposing) {
+            if(disposing) {
+                foreach (var viewWrap in _allWraps) {
+                    viewWrap._va.Dispose();
+                }
+                _vw.Dispose();
+            }
 
             try {
                 FileMutex.WaitOne();
